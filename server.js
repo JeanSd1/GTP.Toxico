@@ -6,6 +6,8 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const publicDirectory = path.join(__dirname, 'public');
 const apiKey = process.env.PUBLICAI_API_KEY;
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 const model = process.env.PUBLICAI_MODEL || 'swiss-ai/apertus-8b-instruct';
 const apiUrl = 'https://api.publicai.co/v1/chat/completions';
 const requestTimeoutMs = 60000;
@@ -52,6 +54,14 @@ async function callModel(messages) {
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, configured: Boolean(apiKey), provider: 'publicai', model });
+});
+
+app.get('/api/config', (_req, res) => {
+  res.json({
+    supabase: supabaseUrl && supabaseAnonKey
+      ? { url: supabaseUrl, anonKey: supabaseAnonKey }
+      : null
+  });
 });
 
 app.post('/api/pergunta', async (req, res) => {

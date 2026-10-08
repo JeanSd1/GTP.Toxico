@@ -25,6 +25,8 @@
     .sidebar-bottom { border-top:1px solid var(--line); padding-top:10px; display:grid; gap:3px; }
     .side-action { padding:10px; border-radius:7px; background:transparent; text-align:left; color:var(--muted); }
     .side-action:hover { background:var(--panel-2); color:var(--text); }
+    .account-state { margin:2px 10px 10px; color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+    .account-state.error { color:var(--danger); }
     .modal-backdrop { position:fixed; z-index:10; inset:0; display:none; place-items:center; padding:18px; background:#0009; }
     .modal-backdrop.open { display:grid; }
     .modal { width:min(620px,100%); max-height:min(760px,92dvh); overflow:auto; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--panel); box-shadow:0 24px 90px #0009; }
@@ -40,6 +42,13 @@
     .modal-actions { display:flex; justify-content:flex-end; gap:8px; }
     .modal-actions button { padding:10px 14px; border-radius:9px; background:var(--panel-2); }
     .modal-actions .save-personality { background:var(--accent); color:#fff; font-weight:700; }
+    .auth-fields { display:grid; gap:12px; margin:20px 0; }
+    .auth-fields label { display:grid; gap:6px; color:var(--muted); font-size:13px; }
+    .auth-fields input { width:100%; padding:12px; border:1px solid var(--line); border-radius:9px; outline:0; background:var(--bg); color:var(--text); }
+    .auth-fields input:focus { border-color:var(--accent); }
+    .auth-message { min-height:20px; color:var(--muted); font-size:13px; overflow-wrap:anywhere; }
+    .auth-message.error { color:var(--danger); }
+    .auth-toggle { margin-top:14px; padding:0; background:transparent; color:var(--accent-2); text-decoration:underline; }
     .main { min-width:0; flex:1; display:flex; flex-direction:column; background:var(--bg); }
     .topbar { height:58px; display:flex; align-items:center; gap:12px; padding:0 24px; border-bottom:1px solid var(--line); }
     .mobile-menu { display:none; background:transparent; font-size:22px; }
@@ -94,6 +103,8 @@
       <div class="history-label">Conversas recentes</div>
       <div class="history" id="history"></div>
       <div class="sidebar-bottom">
+        <button class="side-action" id="accountBtn">♙ &nbsp; Entrar / Criar conta</button>
+        <div class="account-state" id="accountState" aria-live="polite">Histórico salvo neste dispositivo</div>
         <button class="side-action" id="personalityBtn">✦ &nbsp; Editar personalidade</button>
         <button class="side-action" id="theme">☼ &nbsp; Alternar tema</button>
         <button class="side-action" id="clear">⌫ &nbsp; Limpar conversas</button>
@@ -152,16 +163,113 @@
       <div class="modal-actions"><button id="cancelPersonality">Cancelar</button><button class="save-personality" id="savePersonality">Guardar personalidade</button></div>
     </section>
   </div>
+  <div class="modal-backdrop" id="accountModal">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
+      <h2 id="accountTitle">Entrar ou criar conta</h2>
+      <p id="accountDescription">Entre para guardar suas conversas na nuvem e acessá-las em outros dispositivos.</p>
+      <form id="accountForm">
+        <div class="auth-fields">
+          <label for="accountEmail">E-mail<input id="accountEmail" type="email" autocomplete="email" required maxlength="254"></label>
+          <label for="accountPassword">Senha<input id="accountPassword" type="password" autocomplete="current-password" required minlength="8" maxlength="128"></label>
+        </div>
+        <div class="modal-actions"><button class="save-personality" id="accountSubmit" type="submit">Entrar</button></div>
+      </form>
+      <div class="auth-message" id="accountMessage" role="status" aria-live="polite"></div>
+      <button class="auth-toggle" id="accountToggle" type="button">Criar uma conta</button>
+      <div class="modal-actions" id="accountSignedInActions" hidden><button id="signOut" type="button">Sair da conta</button></div>
+    </section>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     const $ = (s) => document.querySelector(s);
     const chat = $('#chat'), welcome = $('#welcome'), messages = $('#messages'), history = $('#history'), prompt = $('#prompt'), send = $('#send');
     const storeKey = 'toxico-conversations-v1';
     const personalityKey = 'toxico-personality-v1';
     const defaultPersonality = 'Sê debochado, mau-humorado, sarcástico e irreverente como personagem de comédia. Nunca respondas de forma simpática, fofa, neutra ou genérica. Não digas "Oi! Como posso ajudar?" nem uses emojis felizes. Começa cada resposta com uma provocação engraçada, depois responde de forma curta e útil. Usa português brasileiro informal e palavrões leves quando encaixarem.';
-    let conversations = JSON.parse(localStorage.getItem(storeKey) || '[]');
+    const accountModal = $('#accountModal');
+    let conversations = readConversations(storeKey);
     let personality = localStorage.getItem(personalityKey) || defaultPersonality;
     let current = null;
-    const save = () => localStorage.setItem(storeKey, JSON.stringify(conversations));
+    let supabaseClient = null;
+    let activeUser = null;
+    let accountMode = 'login';
+    let historyLoading = false;
+    let authRevision = 0;
+    const cloudSaveQueues = new Map();
+    function readConversations(key) {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        console.error('Não foi possível ler o histórico local:', error);
+        return [];
+      }
+    }
+    function setAccountStatus(text, error = false) {
+      const state = $('#accountState');
+      state.textContent = text;
+      state.classList.toggle('error', error);
+      if (error) setAccountMessage(text, true);
+    }
+    function setAccountMessage(text, error = false) {
+      const message = $('#accountMessage');
+      message.textContent = text;
+      message.classList.toggle('error', error);
+    }
+    function renderAccount() {
+      const signedIn = Boolean(activeUser);
+      $('#accountBtn').textContent = signedIn ? '♙  Minha conta' : '♙  Entrar / Criar conta';
+      $('#accountTitle').textContent = signedIn ? 'Sua conta' : accountMode === 'signup' ? 'Criar conta' : 'Entrar ou criar conta';
+      $('#accountDescription').textContent = signedIn
+        ? `Conectado como ${activeUser.email}. Suas conversas estão salvas na nuvem.`
+        : 'Entre para guardar suas conversas na nuvem e acessá-las em outros dispositivos.';
+      $('#accountForm').hidden = signedIn || !supabaseClient;
+      $('#accountToggle').hidden = signedIn || !supabaseClient;
+      $('#accountSignedInActions').hidden = !signedIn;
+      $('#accountSubmit').textContent = accountMode === 'signup' ? 'Criar conta' : 'Entrar';
+      $('#accountToggle').textContent = accountMode === 'signup' ? 'Já tenho uma conta' : 'Criar uma conta';
+      $('#accountPassword').autocomplete = accountMode === 'signup' ? 'new-password' : 'current-password';
+      if (!supabaseClient && !signedIn) {
+        $('#accountForm').hidden = true;
+        $('#accountToggle').hidden = true;
+        setAccountMessage('Cadastro na nuvem não configurado. O administrador precisa definir SUPABASE_URL e SUPABASE_ANON_KEY no Render.', true);
+      }
+    }
+    async function saveCloudConversation(conversation) {
+      if (!supabaseClient || !activeUser) return;
+      const user = activeUser;
+      const payload = {
+        id: String(conversation.id),
+        user_id: user.id,
+        title: (conversation.title || 'Nova conversa').slice(0, 200),
+        messages: JSON.parse(JSON.stringify(conversation.messages)),
+        ...(conversation.created_at ? { created_at: conversation.created_at } : {})
+      };
+      const queueKey = `${user.id}:${payload.id}`;
+      const previous = cloudSaveQueues.get(queueKey) || Promise.resolve();
+      const queued = previous.catch(() => {}).then(async () => {
+        const { error } = await supabaseClient
+          .from('conversations')
+          .upsert(payload, { onConflict: 'user_id,id' });
+        if (error) throw error;
+        if (activeUser?.id === user.id) {
+          setAccountStatus(`Histórico salvo na nuvem • ${user.email}`);
+        }
+      }).catch(error => {
+        console.error('Falha ao salvar conversa na nuvem:', error);
+        if (activeUser?.id === user.id) setAccountStatus(`Erro ao salvar na nuvem: ${error.message}`, true);
+      });
+      cloudSaveQueues.set(queueKey, queued);
+      await queued;
+    }
+    function save() {
+      if (activeUser) {
+        localStorage.setItem(`${storeKey}-${activeUser.id}`, JSON.stringify(conversations));
+        if (!historyLoading && current) void saveCloudConversation(current);
+        return;
+      }
+      localStorage.setItem(storeKey, JSON.stringify(conversations));
+    }
     const closeMenu = () => { $('#sidebar').classList.remove('open'); $('#backdrop').classList.remove('open'); };
     function renderHistory() {
       history.innerHTML = '';
@@ -182,15 +290,126 @@
       });
       chat.scrollTop = chat.scrollHeight;
     }
-    function newConversation() { current = { id: Date.now(), title:'Nova conversa', messages:[] }; conversations.push(current); save(); renderHistory(); renderMessages(); closeMenu(); prompt.focus(); }
+    function newConversation() {
+      if (historyLoading) return;
+      current = { id: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`, title:'Nova conversa', messages:[], created_at:new Date().toISOString() };
+      conversations.push(current); save(); renderHistory(); renderMessages(); closeMenu(); prompt.focus();
+    }
     function ensureConversation(text) { if (!current) newConversation(); if (current.title === 'Nova conversa') { current.title = text.slice(0, 38); renderHistory(); } }
     async function ask(text) {
+      if (historyLoading) return;
       ensureConversation(text); current.messages.push({ role:'user', content:text }); renderMessages(); save(); send.disabled = true; prompt.disabled = true;
       try {
         const r = await fetch('/api/pergunta', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ prompt:text, personality }) });
         const data = await r.json(); current.messages.push({ role:'bot', content:data.resposta || data.erro || 'O servidor ficou sem palavras.' });
       } catch { current.messages.push({ role:'bot', content:'Não consegui ligar ao servidor. Confere se a aplicação está online — até o sarcasmo precisa de internet.' }); }
       finally { save(); renderMessages(); send.disabled = false; prompt.disabled = false; prompt.focus(); }
+    }
+    function mapCloudConversation(row) {
+      return { id: String(row.id), title: row.title, messages: row.messages, created_at: row.created_at, updated_at: row.updated_at };
+    }
+    async function loadCloudHistory(user, revision) {
+      historyLoading = true;
+      send.disabled = true;
+      prompt.disabled = true;
+      const guestHistory = readConversations(storeKey);
+      try {
+        const { data, error } = await supabaseClient
+          .from('conversations')
+          .select('id,title,messages,created_at,updated_at')
+          .order('updated_at', { ascending: true });
+        if (error) throw error;
+        if (revision !== authRevision || activeUser?.id !== user.id) return;
+        const remote = (data || []).map(mapCloudConversation);
+        const remoteIds = new Set(remote.map(conversation => conversation.id));
+        const imports = guestHistory
+          .filter(conversation => !remoteIds.has(String(conversation.id)))
+          .map(conversation => ({
+            id: String(conversation.id),
+            user_id: user.id,
+            title: String(conversation.title || 'Nova conversa').slice(0, 200),
+            messages: Array.isArray(conversation.messages) ? conversation.messages : [],
+            created_at: conversation.created_at || new Date().toISOString()
+          }));
+        if (imports.length) {
+          const { error: importError } = await supabaseClient
+            .from('conversations')
+            .upsert(imports, { onConflict: 'user_id,id' });
+          if (importError) throw importError;
+        }
+        if (revision !== authRevision || activeUser?.id !== user.id) return;
+        const merged = [...remote, ...imports].sort((a, b) => new Date(a.updated_at || a.created_at) - new Date(b.updated_at || b.created_at));
+        conversations = merged;
+        current = null;
+        localStorage.setItem(`${storeKey}-${user.id}`, JSON.stringify(conversations));
+        localStorage.removeItem(storeKey);
+        setAccountStatus(`Histórico salvo na nuvem • ${user.email}`);
+        renderHistory();
+        renderMessages();
+      } catch (error) {
+        if (revision !== authRevision || activeUser?.id !== user.id) return;
+        console.error('Falha ao carregar histórico da nuvem:', error);
+        conversations = readConversations(`${storeKey}-${user.id}`);
+        current = null;
+        setAccountStatus(`Erro ao sincronizar histórico: ${error.message}`, true);
+        renderHistory();
+        renderMessages();
+      } finally {
+        if (revision === authRevision) {
+          historyLoading = false;
+          send.disabled = false;
+          prompt.disabled = false;
+        }
+      }
+    }
+    async function applyAuthSession(session) {
+      const nextUser = session?.user || null;
+      if (activeUser?.id === nextUser?.id) return;
+      const revision = ++authRevision;
+      activeUser = nextUser;
+      current = null;
+      if (activeUser) {
+        conversations = [];
+        setAccountStatus(`Carregando histórico de ${activeUser.email}…`);
+        renderHistory();
+        renderMessages();
+        renderAccount();
+        await loadCloudHistory(activeUser, revision);
+      } else {
+        historyLoading = false;
+        send.disabled = false;
+        prompt.disabled = false;
+        conversations = readConversations(storeKey);
+        setAccountStatus('Histórico salvo neste dispositivo');
+        renderHistory();
+        renderMessages();
+        renderAccount();
+      }
+    }
+    async function initializeSupabase() {
+      try {
+        const response = await fetch('/api/config');
+        if (!response.ok) throw new Error(`Configuração indisponível (HTTP ${response.status}).`);
+        const { supabase } = await response.json();
+        if (!supabase) {
+          setAccountStatus('Histórico salvo neste dispositivo · nuvem não configurada');
+          renderAccount();
+          return;
+        }
+        if (!window.supabase?.createClient) throw new Error('Não foi possível carregar o cliente seguro de autenticação.');
+        supabaseClient = window.supabase.createClient(supabase.url, supabase.anonKey);
+        supabaseClient.auth.onAuthStateChange((_event, session) => {
+          window.setTimeout(() => { void applyAuthSession(session); }, 0);
+        });
+        const { data, error } = await supabaseClient.auth.getSession();
+        if (error) throw error;
+        await applyAuthSession(data.session);
+        renderAccount();
+      } catch (error) {
+        console.error('Falha ao inicializar autenticação:', error);
+        setAccountStatus(`Erro ao configurar autenticação: ${error.message}`, true);
+        renderAccount();
+      }
     }
     $('#form').onsubmit = e => { e.preventDefault(); const text = prompt.value.trim(); if (!text) return; prompt.value = ''; prompt.style.height='auto'; ask(text); };
     prompt.oninput = () => { prompt.style.height='auto'; prompt.style.height=Math.min(prompt.scrollHeight,160)+'px'; };
@@ -204,11 +423,68 @@
     $('#savePersonality').onclick = () => { personality = personalityInput.value.trim() || defaultPersonality; localStorage.setItem(personalityKey, personality); closePersonality(); };
     personalityModal.onclick = e => { if (e.target === personalityModal) closePersonality(); };
     document.querySelectorAll('.preset').forEach(b => b.onclick = () => { personalityInput.value = b.dataset.personality; });
+    $('#accountBtn').onclick = () => { renderAccount(); accountModal.classList.add('open'); closeMenu(); };
+    $('#accountToggle').onclick = () => { accountMode = accountMode === 'login' ? 'signup' : 'login'; setAccountMessage(''); renderAccount(); };
+    $('#accountForm').onsubmit = async event => {
+      event.preventDefault();
+      if (!supabaseClient) return;
+      const email = $('#accountEmail').value.trim();
+      const password = $('#accountPassword').value;
+      const submit = $('#accountSubmit');
+      submit.disabled = true;
+      setAccountMessage(accountMode === 'signup' ? 'Criando sua conta…' : 'Entrando…');
+      try {
+        const result = accountMode === 'signup'
+          ? await supabaseClient.auth.signUp({ email, password })
+          : await supabaseClient.auth.signInWithPassword({ email, password });
+        if (result.error) throw result.error;
+        if (result.data.session) {
+          await applyAuthSession(result.data.session);
+          accountModal.classList.remove('open');
+          setAccountMessage('');
+        } else {
+          setAccountMessage('Conta criada. Confirme seu e-mail pelo link enviado para entrar.');
+        }
+      } catch (error) {
+        console.error('Falha no cadastro ou login:', error);
+        setAccountMessage(error.message || 'Não foi possível entrar. Confira os dados e tente novamente.', true);
+      } finally {
+        submit.disabled = false;
+      }
+    };
+    $('#signOut').onclick = async () => {
+      if (!supabaseClient) return;
+      try {
+        const { error } = await supabaseClient.auth.signOut();
+        if (error) throw error;
+        accountModal.classList.remove('open');
+        setAccountMessage('');
+      } catch (error) {
+        console.error('Falha ao sair da conta:', error);
+        setAccountMessage(`Não foi possível sair da conta: ${error.message}`, true);
+      }
+    };
+    accountModal.onclick = event => { if (event.target === accountModal) accountModal.classList.remove('open'); };
     $('#menu').onclick = () => { $('#sidebar').classList.add('open'); $('#backdrop').classList.add('open'); }; $('#backdrop').onclick = closeMenu;
     $('#theme').onclick = () => { document.documentElement.classList.toggle('light'); localStorage.setItem('toxico-theme', document.documentElement.classList.contains('light') ? 'light' : 'dark'); };
-    $('#clear').onclick = () => { if (confirm('Apagar todas as conversas deste dispositivo?')) { conversations=[]; current=null; save(); renderHistory(); renderMessages(); } };
+    $('#clear').onclick = async () => {
+      if (!confirm(activeUser ? 'Apagar todas as conversas da sua conta na nuvem? Esta ação não pode ser desfeita.' : 'Apagar todas as conversas deste dispositivo?')) return;
+      if (activeUser && supabaseClient) {
+        try {
+          const { error } = await supabaseClient.from('conversations').delete().eq('user_id', activeUser.id);
+          if (error) throw error;
+          localStorage.removeItem(`${storeKey}-${activeUser.id}`);
+        } catch (error) {
+          console.error('Falha ao apagar histórico da nuvem:', error);
+          setAccountStatus(`Erro ao apagar histórico: ${error.message}`, true);
+          return;
+        }
+      }
+      conversations=[]; current=null; save(); renderHistory(); renderMessages();
+    };
     if (localStorage.getItem('toxico-theme') === 'light') document.documentElement.classList.add('light');
     renderHistory(); renderMessages();
+    void initializeSupabase();
   </script>
 </body>
 </html>

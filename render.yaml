@@ -12,3 +12,7 @@ services:
         sync: false
       - key: PUBLICAI_MODEL
         value: swiss-ai/apertus-8b-instruct
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
