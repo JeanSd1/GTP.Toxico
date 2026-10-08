@@ -19,7 +19,7 @@ O cadastro e login por e-mail/senha usam Supabase Auth. As conversas ficam em Po
 
 1. Crie um projeto no Supabase.
 2. No **SQL Editor**, execute o conteúdo de [`supabase/migrations/001_conversations.sql`](./supabase/migrations/001_conversations.sql).
-3. Em **Authentication → URL Configuration**, defina a URL pública do app como **Site URL** e adicione-a às **Redirect URLs**. Para desenvolvimento local, inclua também `http://localhost:3000/**`.
+3. Em **Authentication → URL Configuration**, defina a URL pública do app como **Site URL** e adicione-a às **Redirect URLs** (por exemplo, `https://SEU-APP.onrender.com/**`). Para desenvolvimento local, inclua também `http://localhost:3000/**`. O cadastro redireciona o e-mail de confirmação para a origem em que o app foi aberto; essa origem precisa estar autorizada aqui.
 4. No Render, adicione `SUPABASE_URL` e `SUPABASE_ANON_KEY` usando os valores do projeto Supabase. A chave anon/public é própria para o navegador; **nunca** use `service_role` no app, no Render ou no Git.
 5. Faça o deploy e teste cadastro, confirmação do e-mail (se ativada no Supabase), login e histórico.
 

@@ -435,7 +435,11 @@
       setAccountMessage(accountMode === 'signup' ? 'Criando sua conta…' : 'Entrando…');
       try {
         const result = accountMode === 'signup'
-          ? await supabaseClient.auth.signUp({ email, password })
+          ? await supabaseClient.auth.signUp({
+            email,
+            password,
+            options: { emailRedirectTo: window.location.origin }
+          })
           : await supabaseClient.auth.signInWithPassword({ email, password });
         if (result.error) throw result.error;
         if (result.data.session) {
