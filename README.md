@@ -1,24 +1,26 @@
 # TÓXICO
 
-Chat web de humor ácido em português, com sarcasmo controlado e limites contra assédio, ódio, ameaças e incentivo a danos.
+Chat web de humor ácido em português, com sarcasmo controlado e limites contra assédio, ódio, ameaças e incentivo a danos. A geração usa o endpoint compatível com chat completions da Public AI.
 
 ## Executar
 
 ```bash
 npm install
 cp .env.example .env
-# edite .env e defina OPENROUTER_API_KEY
-set -a; . ./.env; set +a
+# edite .env e defina PUBLICAI_API_KEY
 npm start
 ```
 
 Abra `http://localhost:3000`.
 
-A chave é lida apenas de `OPENROUTER_API_KEY`; não coloque tokens no código ou no Git. O token que estava exposto na versão anterior deve ser revogado/rotacionado no painel da OpenRouter.
+A chave é lida apenas de `PUBLICAI_API_KEY`; não coloque tokens no código ou no Git. A Public AI pode aplicar rate limits mesmo quando oferece acesso gratuito; o servidor trata `429` sem expor detalhes da chave.
 
 ## Variáveis
 
-- `OPENROUTER_API_KEY`: obrigatório para gerar respostas.
-- `OPENROUTER_MODEL`: modelo OpenRouter; por padrão usa uma variante gratuita.
+- `PUBLICAI_API_KEY`: obrigatório para gerar respostas.
+- `PUBLICAI_MODEL`: modelo Public AI; por padrão usa `swiss-ai/apertus-8b-instruct`.
+- O servidor encerra uma chamada que ultrapasse 60 segundos e mostra uma mensagem clara, evitando que a conversa fique presa.
+- O editor inclui presets de sotaque/gírias carioca, nordestina, baiana, mineira, gaúcha e paulista.
+- Se a Public AI devolver uma saudação genérica ou explicar a própria personalidade, o servidor faz uma reescrita automática uma vez.
 - `PORT`: porta HTTP, padrão `3000`.
 - `APP_URL`: URL usada no cabeçalho de referência.

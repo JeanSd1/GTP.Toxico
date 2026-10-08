@@ -25,6 +25,21 @@
     .sidebar-bottom { border-top:1px solid var(--line); padding-top:10px; display:grid; gap:3px; }
     .side-action { padding:10px; border-radius:7px; background:transparent; text-align:left; color:var(--muted); }
     .side-action:hover { background:var(--panel-2); color:var(--text); }
+    .modal-backdrop { position:fixed; z-index:10; inset:0; display:none; place-items:center; padding:18px; background:#0009; }
+    .modal-backdrop.open { display:grid; }
+    .modal { width:min(620px,100%); max-height:min(760px,92dvh); overflow:auto; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--panel); box-shadow:0 24px 90px #0009; }
+    .modal h2 { margin:0 0 8px; font-size:22px; }
+    .modal p { margin:0 0 18px; color:var(--muted); line-height:1.5; font-size:14px; }
+    .personality-input { width:100%; min-height:170px; resize:vertical; padding:13px; border:1px solid var(--line); border-radius:10px; outline:0; background:var(--bg); color:var(--text); line-height:1.5; }
+    .personality-input:focus { border-color:var(--accent); }
+    .presets { display:flex; flex-wrap:wrap; gap:7px; margin:14px 0 20px; }
+    .preset { padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:transparent; color:var(--muted); font-size:12px; }
+    .preset:hover { border-color:var(--accent); color:var(--text); }
+    .preset-heading { margin:18px 0 8px !important; color:var(--text) !important; font-size:12px !important; font-weight:700; text-transform:uppercase; letter-spacing:.08em; }
+    .regional-presets { margin-top:0; }
+    .modal-actions { display:flex; justify-content:flex-end; gap:8px; }
+    .modal-actions button { padding:10px 14px; border-radius:9px; background:var(--panel-2); }
+    .modal-actions .save-personality { background:var(--accent); color:#fff; font-weight:700; }
     .main { min-width:0; flex:1; display:flex; flex-direction:column; background:var(--bg); }
     .topbar { height:58px; display:flex; align-items:center; gap:12px; padding:0 24px; border-bottom:1px solid var(--line); }
     .mobile-menu { display:none; background:transparent; font-size:22px; }
@@ -79,6 +94,7 @@
       <div class="history-label">Conversas recentes</div>
       <div class="history" id="history"></div>
       <div class="sidebar-bottom">
+        <button class="side-action" id="personalityBtn">✦ &nbsp; Editar personalidade</button>
         <button class="side-action" id="theme">☼ &nbsp; Alternar tema</button>
         <button class="side-action" id="clear">⌫ &nbsp; Limpar conversas</button>
       </div>
@@ -113,11 +129,37 @@
       </div>
     </section>
   </div>
+  <div class="modal-backdrop" id="personalityModal">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="personalityTitle">
+      <h2 id="personalityTitle">Editar personalidade</h2>
+      <p>Escreve exatamente como a IA deve responder: tom, estilo, sotaque, conhecimentos, bordões e regras. O texto é enviado como instrução prioritária para cada mensagem e fica guardado apenas neste navegador.</p>
+      <textarea class="personality-input" id="personalityInput" maxlength="4000" placeholder="Ex.: Responde como um comediante sarcástico, com frases curtas..."></textarea>
+      <div class="presets">
+        <button class="preset" data-personality="Sê um comediante ácido e irreverente. Faz piadas rápidas, sarcasmo inteligente e respostas curtas.">Tóxico</button>
+        <button class="preset" data-personality="Sê um mentor direto e exigente. Explica com clareza, aponta erros sem rodeios e dá passos práticos.">Mentor direto</button>
+        <button class="preset" data-personality="Sê um amigo animado e criativo. Usa energia, leveza e exemplos fáceis de entender.">Amigo animado</button>
+        <button class="preset" data-personality="Sê um professor paciente. Ensina do zero, usa analogias e confirma os pontos importantes.">Professor</button>
+      </div>
+      <p class="preset-heading">Sotaques e gírias regionais</p>
+      <div class="presets regional-presets">
+        <button class="preset" data-personality="Fala como alguém do Rio de Janeiro, com um toque carioca leve e natural: use gírias como mermão, cara, maneiro e qual foi, sem caricaturar o sotaque.">Carioca</button>
+        <button class="preset" data-personality="Fala como alguém do Nordeste brasileiro, com calor humano e humor arretado: use de vez em quando oxente, visse, massa e arretado, sem exagerar nem caricaturar a região.">Nordestino</button>
+        <button class="preset" data-personality="Fala com um toque baiano descontraído e musical: use às vezes meu rei, massa e oxente, com humor leve e sem forçar a caricatura.">Baiano</button>
+        <button class="preset" data-personality="Fala como alguém de Minas Gerais, calmo e astuto: use naturalmente uai, sô e trem, sem colocar gíria em toda frase.">Mineiro</button>
+        <button class="preset" data-personality="Fala com um toque gaúcho informal: use às vezes bah, tchê e tri, mantendo o texto natural e sem caricaturar.">Gaúcho</button>
+        <button class="preset" data-personality="Fala como alguém de São Paulo, direto e urbano: use às vezes mano, meu e firmeza, sem exagerar.">Paulista</button>
+      </div>
+      <div class="modal-actions"><button id="cancelPersonality">Cancelar</button><button class="save-personality" id="savePersonality">Guardar personalidade</button></div>
+    </section>
+  </div>
   <script>
     const $ = (s) => document.querySelector(s);
     const chat = $('#chat'), welcome = $('#welcome'), messages = $('#messages'), history = $('#history'), prompt = $('#prompt'), send = $('#send');
     const storeKey = 'toxico-conversations-v1';
+    const personalityKey = 'toxico-personality-v1';
+    const defaultPersonality = 'Sê debochado, mau-humorado, sarcástico e irreverente como personagem de comédia. Nunca respondas de forma simpática, fofa, neutra ou genérica. Não digas "Oi! Como posso ajudar?" nem uses emojis felizes. Começa cada resposta com uma provocação engraçada, depois responde de forma curta e útil. Usa português brasileiro informal e palavrões leves quando encaixarem.';
     let conversations = JSON.parse(localStorage.getItem(storeKey) || '[]');
+    let personality = localStorage.getItem(personalityKey) || defaultPersonality;
     let current = null;
     const save = () => localStorage.setItem(storeKey, JSON.stringify(conversations));
     const closeMenu = () => { $('#sidebar').classList.remove('open'); $('#backdrop').classList.remove('open'); };
@@ -145,7 +187,7 @@
     async function ask(text) {
       ensureConversation(text); current.messages.push({ role:'user', content:text }); renderMessages(); save(); send.disabled = true; prompt.disabled = true;
       try {
-        const r = await fetch('/api/pergunta', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ prompt:text }) });
+        const r = await fetch('/api/pergunta', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ prompt:text, personality }) });
         const data = await r.json(); current.messages.push({ role:'bot', content:data.resposta || data.erro || 'O servidor ficou sem palavras.' });
       } catch { current.messages.push({ role:'bot', content:'Não consegui ligar ao servidor. Confere se a aplicação está online — até o sarcasmo precisa de internet.' }); }
       finally { save(); renderMessages(); send.disabled = false; prompt.disabled = false; prompt.focus(); }
@@ -155,6 +197,13 @@
     prompt.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#form').requestSubmit(); } };
     document.querySelectorAll('.prompt-card').forEach(b => b.onclick = () => { prompt.value=b.textContent; $('#form').requestSubmit(); });
     $('#newChat').onclick = newConversation; $('#newTop').onclick = newConversation;
+    const personalityModal = $('#personalityModal'), personalityInput = $('#personalityInput');
+    const closePersonality = () => personalityModal.classList.remove('open');
+    $('#personalityBtn').onclick = () => { personalityInput.value = personality; personalityModal.classList.add('open'); personalityInput.focus(); closeMenu(); };
+    $('#cancelPersonality').onclick = closePersonality;
+    $('#savePersonality').onclick = () => { personality = personalityInput.value.trim() || defaultPersonality; localStorage.setItem(personalityKey, personality); closePersonality(); };
+    personalityModal.onclick = e => { if (e.target === personalityModal) closePersonality(); };
+    document.querySelectorAll('.preset').forEach(b => b.onclick = () => { personalityInput.value = b.dataset.personality; });
     $('#menu').onclick = () => { $('#sidebar').classList.add('open'); $('#backdrop').classList.add('open'); }; $('#backdrop').onclick = closeMenu;
     $('#theme').onclick = () => { document.documentElement.classList.toggle('light'); localStorage.setItem('toxico-theme', document.documentElement.classList.contains('light') ? 'light' : 'dark'); };
     $('#clear').onclick = () => { if (confirm('Apagar todas as conversas deste dispositivo?')) { conversations=[]; current=null; save(); renderHistory(); renderMessages(); } };
