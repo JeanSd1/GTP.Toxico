@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TÓXICO — roast com limites</title>
+  <style>
+    :root { color-scheme: dark; --bg:#111116; --panel:#1b1b24; --accent:#ff5577; --muted:#a9a9b7; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; display:grid; place-items:center; background:radial-gradient(circle at 20% 0%,#3b1828,transparent 45%),var(--bg); font-family:Inter,system-ui,sans-serif; color:#f8f8fb; }
+    main { width:min(720px,92vw); background:rgba(27,27,36,.94); border:1px solid #393945; border-radius:24px; padding:28px; box-shadow:0 20px 70px #0008; }
+    h1 { margin:0 0 6px; letter-spacing:.08em; color:var(--accent); }
+    .tagline { color:var(--muted); margin:0 0 22px; }
+    #chat { min-height:280px; max-height:52vh; overflow:auto; padding:4px; display:flex; flex-direction:column; gap:12px; }
+    .bubble { padding:13px 15px; border-radius:15px; line-height:1.45; white-space:pre-wrap; }
+    .user { align-self:flex-end; max-width:85%; background:#373746; }
+    .bot { align-self:flex-start; max-width:90%; background:#351d2a; border-left:3px solid var(--accent); }
+    .empty { color:var(--muted); text-align:center; padding:80px 20px; }
+    form { display:flex; gap:10px; margin-top:18px; }
+    input { flex:1; min-width:0; padding:14px 16px; border-radius:13px; border:1px solid #444452; background:#101016; color:inherit; font-size:1rem; }
+    button { border:0; border-radius:13px; padding:0 20px; background:var(--accent); color:#190b10; font-weight:800; cursor:pointer; }
+    button:disabled { opacity:.6; cursor:wait; }
+    small { display:block; color:var(--muted); margin-top:14px; line-height:1.4; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>TÓXICO</h1>
+    <p class="tagline">Sarcasmo controlado. Porque até o caos precisa de limites.</p>
+    <section id="chat" aria-live="polite"><div class="empty">Manda uma pergunta. Prometo julgar a ideia, não a tua identidade.</div></section>
+    <form id="form">
+      <input id="prompt" maxlength="4000" autocomplete="off" placeholder="Escreve qualquer coisa..." required>
+      <button id="send" type="submit">Enviar</button>
+    </form>
+    <small>O modo tóxico é brincalhão: não aceita ameaças, ódio, perseguição ou ataques a grupos protegidos.</small>
+  </main>
+  <script>
+    const form = document.querySelector('#form');
+    const input = document.querySelector('#prompt');
+    const chat = document.querySelector('#chat');
+    const send = document.querySelector('#send');
+    function add(text, cls) {
+      chat.querySelector('.empty')?.remove();
+      const el = document.createElement('div');
+      el.className = `bubble ${cls}`;
+      el.textContent = text;
+      chat.appendChild(el);
+      chat.scrollTop = chat.scrollHeight;
+    }
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const prompt = input.value.trim();
+      if (!prompt || send.disabled) return;
+      add(prompt, 'user'); input.value = ''; send.disabled = true; send.textContent = '...';
+      try {
+        const response = await fetch('/api/pergunta', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt}) });
+        const data = await response.json();
+        add(data.resposta || data.erro || 'Algo correu mal.', 'bot');
+      } catch { add('A ligação caiu. Até o servidor fugiu da conversa.', 'bot'); }
+      finally { send.disabled = false; send.textContent = 'Enviar'; input.focus(); }
+    });
+  </script>
+</body>
+</html>

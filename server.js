@@ -1,71 +1,73 @@
-
 const express = require('express');
 
-const fetch = require('node-fetch');
 const app = express();
-const port = 3000;
+const port = Number(process.env.PORT || 3000);
+const apiKey = process.env.OPENROUTER_API_KEY;
+const model = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.1-8b-instruct:free';
 
-app.use(express.json());
+app.use(express.json({ limit: '32kb' }));
 app.use(express.static('public'));
 
+const systemPrompt = `Você é o TÓXICO, um assistente de humor ácido em português do Brasil.
+Faça roast leve e claramente brincalhão: sarcasmo, ironia e piadas sobre a situação ou sobre escolhas genéricas do usuário.
+Nunca ataque identidade, raça, etnia, nacionalidade, religião, género, orientação sexual, deficiência ou aparência protegida.
+Nunca faça ameaças, incentive violência, humilhação extrema, perseguição, exposição de dados, automutilação ou suicídio.
+Não use palavrões como ataque a grupos e não transforme vulnerabilidades pessoais em piada.
+Se o usuário pedir algo perigoso ou abusivo, recuse de forma breve e ofereça uma alternativa segura, mantendo um toque de humor.
+Se o usuário disser que não quer zoeira, responda normalmente e com respeito.
+Mantenha respostas úteis, curtas e bem-humoradas.`;
+
+function cleanPrompt(value) {
+  return typeof value === 'string' ? value.trim().slice(0, 4000) : '';
+}
+
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true, configured: Boolean(apiKey), model });
+});
+
 app.post('/api/pergunta', async (req, res) => {
-  const prompt = req.body.prompt;
-  // Token fornecido pelo usuário para OpenRouter
-  const OPENROUTER_TOKEN = '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';
-  // Lista de modelos gratuitos mais comuns na OpenRouter (ordem de tentativa)
-  const modelos = [
-    'meta-llama/llama-3-8b-instruct',
-    'mistralai/mistral-7b-instruct',
-    'nousresearch/nous-capybara-7b',
-    'openchat/openchat-3.5-1210',
-    'gryphe/mythomist-7b',
-    'google/gemma-7b-it'
-  ];
-  let resposta = null;
-  let ultimoErro = null;
-  for (const modelo of modelos) {
-    try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENROUTER_TOKEN}`,
-          'HTTP-Referer': 'http://localhost:3000',
-          'X-Title': 'ChatGPToxico'
-        },
-        body: JSON.stringify({
-          model: modelo,
-          messages: [
-            { role: 'system', content: 'Você é o CHATGPTOXICO. Um assistente sarcástico, mal-humorado e debochado. Sempre tira sarro do usuário. Responda tudo com zoeira, sarcasmo ou ironia. Quanto mais idiota a pergunta, mais tóxico você fica.' },
-            { role: 'user', content: prompt }
-          ]
-        })
-      });
-      const data = await response.json();
-      // Log detalhado de todos os erros e respostas
-      if (data.choices && data.choices[0]?.message?.content) {
-        console.log('Modelo OK:', modelo, '| Resposta:', data.choices[0].message.content);
-        resposta = data.choices[0].message.content;
-        break;
-      } else if (data.error) {
-        console.error('Modelo ERRO:', modelo, '| Erro:', data.error);
-        ultimoErro = `[${modelo}] ${data.error.message}`;
-      } else {
-        console.error('Modelo ERRO:', modelo, '| Resposta inesperada:', data);
-        ultimoErro = `[${modelo}] Resposta inesperada: ` + JSON.stringify(data);
-      }
-    } catch (err) {
-      console.error('Modelo ERRO:', modelo, '| Exceção:', err);
-      ultimoErro = `[${modelo}] Exceção: ` + err.message;
-    }
+  const prompt = cleanPrompt(req.body?.prompt);
+  if (!prompt) return res.status(400).json({ erro: 'Escreva uma pergunta.' });
+  if (!apiKey) {
+    return res.status(503).json({
+      erro: 'A API ainda não foi configurada. Defina OPENROUTER_API_KEY antes de iniciar o servidor.'
+    });
   }
-  if (resposta) {
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        'HTTP-Referer': process.env.APP_URL || `http://localhost:${port}`,
+        'X-Title': 'Toxico'
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.85,
+        max_tokens: 350,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ]
+      })
+    });
+
+    const data = await response.json();
+    const resposta = data?.choices?.[0]?.message?.content?.trim();
+    if (!response.ok || !resposta) {
+      console.error('OpenRouter error:', response.status, data?.error || data);
+      return res.status(502).json({ erro: 'O modelo não respondeu agora. Tente novamente.' });
+    }
     res.json({ resposta });
-  } else {
-    res.status(500).json({ resposta: 'Nenhum modelo gratuito disponível no momento. Último erro: ' + (ultimoErro || 'desconhecido') });
+  } catch (error) {
+    console.error('Request error:', error.message);
+    res.status(502).json({ erro: 'Não foi possível contactar o modelo.' });
   }
 });
 
-app.listen(port, () => {
-  console.log(`🔥 ChatGPTóxico disponível em http://localhost:${port}`);
+app.listen(port, '0.0.0.0', () => {
+  console.log(`TÓXICO disponível em http://localhost:${port}`);
+  if (!apiKey) console.warn('Aviso: OPENROUTER_API_KEY não definida.');
 });
