@@ -15,18 +15,14 @@ Abra `http://localhost:3000`.
 
 ## Deploy no Render
 
-O repositório inclui `render.yaml` e `Dockerfile`, portanto podes fazer deploy pelo Blueprint:
+Este projeto precisa de um **Web Service** (não de um Static Site), pois o servidor Express entrega a interface e a API. O `render.yaml` configura o serviço Node e usa `/api/health` para verificar se a aplicação está respondendo.
 
-1. No Render, escolhe **New → Blueprint**.
-2. Liga o repositório `JeanSd1/GTP.Toxico`.
-3. Confirma o serviço web `toxico` usando o plano `free`.
-4. Preenche `PUBLICAI_API_KEY` no campo protegido do Render — nunca coloques a chave no GitHub, no `render.yaml` ou no Dockerfile.
-5. Mantém `PUBLICAI_MODEL` como `swiss-ai/apertus-8b-instruct` ou escolhe outro modelo disponível na Public AI.
-6. O Render usará `/api/health` para verificar a saúde e fará deploy automático a cada commit na branch principal.
+1. No Render, crie um **Blueprint** a partir deste repositório, ou crie um **Web Service** manualmente.
+2. Na configuração manual, use `npm install` como **Build Command** e `npm start` como **Start Command**.
+3. Cadastre `PUBLICAI_API_KEY` nas variáveis de ambiente do serviço. Nunca coloque a chave no repositório.
+4. Faça o deploy e abra a URL principal do serviço. A rota `/api/health` deve responder com JSON.
 
-O servidor respeita a variável `PORT` fornecida pelo Render e escuta em `0.0.0.0`, como exigido por serviços web Docker.
-
-A chave é lida apenas de `PUBLICAI_API_KEY`; não coloque tokens no código ou no Git. A Public AI pode aplicar rate limits mesmo quando oferece acesso gratuito; o servidor trata `429` sem expor detalhes da chave.
+Se o endereço mostrar `Not Found`, confirme que está usando a URL principal do **Web Service** no Render, não um encaminhamento de porta local do Codespaces. Um Static Site não executa este servidor nem disponibiliza as rotas `/api`.
 
 ## Variáveis
 

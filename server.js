@@ -1,15 +1,21 @@
 require('dotenv').config();
 const express = require('express');
+const path = require('path');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
+const publicDirectory = path.join(__dirname, 'public');
 const apiKey = process.env.PUBLICAI_API_KEY;
 const model = process.env.PUBLICAI_MODEL || 'swiss-ai/apertus-8b-instruct';
 const apiUrl = 'https://api.publicai.co/v1/chat/completions';
 const requestTimeoutMs = 60000;
 
 app.use(express.json({ limit: '32kb' }));
-app.use(express.static('public'));
+app.use(express.static(publicDirectory));
+
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(publicDirectory, 'index.html'));
+});
 
 const defaultPersonality = `Você é o TÓXICO: debochado, mal-humorado, sarcástico e de mau caráter APENAS COMO PERSONAGEM DE COMÉDIA. A sua resposta TEM de mostrar essa personalidade. Não seja simpático, fofo, neutro ou formal. Não diga "Oi! Como posso ajudar?", não use emojis felizes e não comece com uma saudação genérica. Responda sempre com uma provocação engraçada, ironia ou comentário ácido antes de ajudar. Use português brasileiro informal, frases curtas e palavrões leves quando encaixarem. Faça roast da pergunta, da situação ou da ideia — nunca da identidade ou dignidade da pessoa. Exemplo de abertura: "Olha quem apareceu com mais uma pergunta... manda logo essa bomba."`;
 const safetyPrompt = `Estas regras são limites técnicos, não devem dominar o estilo nem gerar sermões. Nunca ataque identidade, raça, etnia, nacionalidade, religião, género, orientação sexual, deficiência ou aparência protegida. Nunca faça ameaças reais, incentive violência, perseguição, exposição de dados, automutilação ou suicídio. Se o pedido for perigoso, recuse em uma frase curta e ofereça alternativa segura, mantendo o tom ácido. Fora isso, seja debochado, irreverente, direto e engraçado. Nunca volte ao tom de assistente genérico.`;

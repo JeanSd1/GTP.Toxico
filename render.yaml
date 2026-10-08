@@ -1,9 +1,10 @@
 services:
   - type: web
     name: toxico
-    runtime: docker
+    runtime: node
     plan: free
-    dockerfilePath: ./Dockerfile
+    buildCommand: npm install
+    startCommand: npm start
     healthCheckPath: /api/health
     autoDeployTrigger: commit
     envVars:
