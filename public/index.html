@@ -2,63 +2,164 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>TÓXICO — roast com limites</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111111">
+  <title>Tóxico — chat de humor ácido</title>
   <style>
-    :root { color-scheme: dark; --bg:#111116; --panel:#1b1b24; --accent:#ff5577; --muted:#a9a9b7; }
+    :root { --bg:#212121; --panel:#171717; --panel-2:#2f2f2f; --text:#ececec; --muted:#a7a7a7; --line:#3b3b3b; --accent:#ff4f79; --accent-2:#ff87a3; --user:#2f2f2f; --danger:#ff7272; }
+    :root.light { --bg:#fff; --panel:#f7f7f8; --panel-2:#e9e9eb; --text:#242424; --muted:#6b6b6b; --line:#d7d7da; --accent:#db2859; --accent-2:#a81741; --user:#f1f1f2; }
     * { box-sizing:border-box; }
-    body { margin:0; min-height:100vh; display:grid; place-items:center; background:radial-gradient(circle at 20% 0%,#3b1828,transparent 45%),var(--bg); font-family:Inter,system-ui,sans-serif; color:#f8f8fb; }
-    main { width:min(720px,92vw); background:rgba(27,27,36,.94); border:1px solid #393945; border-radius:24px; padding:28px; box-shadow:0 20px 70px #0008; }
-    h1 { margin:0 0 6px; letter-spacing:.08em; color:var(--accent); }
-    .tagline { color:var(--muted); margin:0 0 22px; }
-    #chat { min-height:280px; max-height:52vh; overflow:auto; padding:4px; display:flex; flex-direction:column; gap:12px; }
-    .bubble { padding:13px 15px; border-radius:15px; line-height:1.45; white-space:pre-wrap; }
-    .user { align-self:flex-end; max-width:85%; background:#373746; }
-    .bot { align-self:flex-start; max-width:90%; background:#351d2a; border-left:3px solid var(--accent); }
-    .empty { color:var(--muted); text-align:center; padding:80px 20px; }
-    form { display:flex; gap:10px; margin-top:18px; }
-    input { flex:1; min-width:0; padding:14px 16px; border-radius:13px; border:1px solid #444452; background:#101016; color:inherit; font-size:1rem; }
-    button { border:0; border-radius:13px; padding:0 20px; background:var(--accent); color:#190b10; font-weight:800; cursor:pointer; }
-    button:disabled { opacity:.6; cursor:wait; }
-    small { display:block; color:var(--muted); margin-top:14px; line-height:1.4; }
+    html,body { margin:0; height:100%; overflow:hidden; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; }
+    button,input { font:inherit; }
+    button { cursor:pointer; border:0; color:inherit; }
+    .app { display:flex; height:100dvh; }
+    .sidebar { width:276px; flex:0 0 276px; background:var(--panel); display:flex; flex-direction:column; padding:12px; border-right:1px solid var(--line); transition:transform .22s ease; }
+    .brand { display:flex; align-items:center; gap:10px; padding:9px 10px 20px; font-weight:800; letter-spacing:.08em; }
+    .brand-mark { display:grid; place-items:center; width:30px; height:30px; border-radius:9px; background:var(--accent); color:#fff; font-size:17px; box-shadow:0 5px 20px #ff4f7940; }
+    .new-chat { display:flex; align-items:center; gap:11px; width:100%; padding:12px 13px; border:1px solid var(--line); border-radius:9px; background:transparent; text-align:left; transition:.18s; }
+    .new-chat:hover { background:var(--panel-2); }
+    .history-label { margin:24px 10px 8px; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.1em; }
+    .history { overflow:auto; flex:1; }
+    .history-item { width:100%; padding:10px; margin:2px 0; border-radius:7px; background:transparent; color:var(--muted); text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .history-item.active,.history-item:hover { color:var(--text); background:var(--panel-2); }
+    .sidebar-bottom { border-top:1px solid var(--line); padding-top:10px; display:grid; gap:3px; }
+    .side-action { padding:10px; border-radius:7px; background:transparent; text-align:left; color:var(--muted); }
+    .side-action:hover { background:var(--panel-2); color:var(--text); }
+    .main { min-width:0; flex:1; display:flex; flex-direction:column; background:var(--bg); }
+    .topbar { height:58px; display:flex; align-items:center; gap:12px; padding:0 24px; border-bottom:1px solid var(--line); }
+    .mobile-menu { display:none; background:transparent; font-size:22px; }
+    .model-name { font-weight:650; }
+    .model-pill { color:var(--muted); font-size:12px; }
+    .top-spacer { flex:1; }
+    .top-action { width:34px; height:34px; border-radius:8px; background:transparent; color:var(--muted); }
+    .top-action:hover { color:var(--text); background:var(--panel-2); }
+    .chat { flex:1; overflow-y:auto; scroll-behavior:smooth; }
+    .welcome { width:min(760px,calc(100% - 36px)); margin:auto; padding:60px 0 30px; }
+    .welcome h1 { margin:0 0 10px; font-size:clamp(30px,5vw,46px); letter-spacing:-.04em; }
+    .welcome h1 span { color:var(--accent); }
+    .welcome p { margin:0; color:var(--muted); line-height:1.6; }
+    .prompt-cards { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:32px; }
+    .prompt-card { padding:14px; min-height:78px; border:1px solid var(--line); border-radius:10px; background:var(--panel); color:var(--muted); text-align:left; transition:.18s; }
+    .prompt-card:hover { border-color:var(--accent); color:var(--text); transform:translateY(-1px); }
+    .messages { padding:26px 0 180px; }
+    .message { display:flex; gap:18px; width:min(800px,calc(100% - 36px)); margin:0 auto 26px; line-height:1.65; }
+    .avatar { flex:0 0 30px; height:30px; display:grid; place-items:center; border-radius:8px; font-size:13px; font-weight:800; }
+    .message.user .avatar { background:#555; color:#fff; }
+    .message.bot .avatar { background:var(--accent); color:#fff; }
+    .message-body { min-width:0; white-space:pre-wrap; overflow-wrap:anywhere; }
+    .message.user .message-body { background:var(--user); padding:10px 14px; border-radius:12px; margin-top:-4px; }
+    .composer-wrap { position:fixed; bottom:0; left:276px; right:0; padding:22px max(18px,calc((100vw - 850px)/2)) 18px; background:linear-gradient(transparent,var(--bg) 28%); }
+    .composer { display:flex; align-items:flex-end; gap:10px; padding:9px 10px 9px 16px; border:1px solid var(--line); border-radius:14px; background:var(--panel); box-shadow:0 8px 35px #0005; }
+    textarea { width:100%; min-height:24px; max-height:160px; resize:none; border:0; outline:0; background:transparent; color:var(--text); line-height:1.45; }
+    textarea::placeholder { color:var(--muted); }
+    .send { flex:0 0 36px; height:36px; border-radius:9px; background:var(--accent); color:white; font-size:18px; transition:.18s; }
+    .send:disabled { opacity:.45; cursor:not-allowed; }
+    .disclaimer { margin:9px auto 0; color:var(--muted); font-size:11px; text-align:center; }
+    .backdrop { display:none; }
+    @media (max-width:700px) {
+      .sidebar { position:fixed; z-index:5; top:0; bottom:0; left:0; transform:translateX(-100%); box-shadow:12px 0 40px #0008; }
+      .sidebar.open { transform:translateX(0); }
+      .backdrop { position:fixed; z-index:4; inset:0; background:#0008; }
+      .backdrop.open { display:block; }
+      .mobile-menu { display:block; }
+      .topbar { padding:0 14px; }
+      .composer-wrap { left:0; padding:17px 12px 12px; }
+      .welcome { padding-top:42px; }
+      .prompt-cards { grid-template-columns:1fr; }
+      .message { gap:11px; width:calc(100% - 24px); margin-bottom:21px; }
+      .messages { padding-top:20px; }
+    }
   </style>
 </head>
 <body>
-  <main>
-    <h1>TÓXICO</h1>
-    <p class="tagline">Zoeira sem papas na língua. O alvo é a ideia, não a tua identidade.</p>
-    <section id="chat" aria-live="polite"><div class="empty">Manda uma pergunta. Prometo julgar a ideia, não a tua identidade.</div></section>
-    <form id="form">
-      <input id="prompt" maxlength="4000" autocomplete="off" placeholder="Escreve qualquer coisa..." required>
-      <button id="send" type="submit">Enviar</button>
-    </form>
-    <small>O modo tóxico é brincalhão: não aceita ameaças, ódio, perseguição ou ataques a grupos protegidos.</small>
-  </main>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><span class="brand-mark">T</span><span>TÓXICO</span></div>
+      <button class="new-chat" id="newChat"><span>＋</span><strong>Nova conversa</strong></button>
+      <div class="history-label">Conversas recentes</div>
+      <div class="history" id="history"></div>
+      <div class="sidebar-bottom">
+        <button class="side-action" id="theme">☼ &nbsp; Alternar tema</button>
+        <button class="side-action" id="clear">⌫ &nbsp; Limpar conversas</button>
+      </div>
+    </aside>
+    <div class="backdrop" id="backdrop"></div>
+    <section class="main">
+      <header class="topbar">
+        <button class="mobile-menu" id="menu" aria-label="Abrir menu">☰</button>
+        <div class="model-name">Tóxico <span class="model-pill">• sarcasmo online</span></div>
+        <div class="top-spacer"></div>
+        <button class="top-action" id="newTop" title="Nova conversa">＋</button>
+      </header>
+      <div class="chat" id="chat">
+        <section class="welcome" id="welcome">
+          <h1>Em que posso <span>zoar</span> hoje?</h1>
+          <p>Humor ácido, respostas úteis e zero paciência para perguntas mal pensadas. Relaxa: a piada é com a ideia, não com quem tu és.</p>
+          <div class="prompt-cards">
+            <button class="prompt-card">Dá-me uma motivação que não pareça frase de caneca.</button>
+            <button class="prompt-card">Explica este assunto como se eu tivesse dormido na aula.</button>
+            <button class="prompt-card">Faz um roast do meu plano para hoje.</button>
+            <button class="prompt-card">Ajuda-me a tomar uma decisão sem drama.</button>
+          </div>
+        </section>
+        <section class="messages" id="messages"></section>
+      </div>
+      <div class="composer-wrap">
+        <form class="composer" id="form">
+          <textarea id="prompt" rows="1" maxlength="4000" placeholder="Manda uma mensagem para o Tóxico..." aria-label="Mensagem"></textarea>
+          <button class="send" id="send" type="submit" aria-label="Enviar">↑</button>
+        </form>
+        <div class="disclaimer">O Tóxico pode errar. A personalidade, infelizmente, é intencional.</div>
+      </div>
+    </section>
+  </div>
   <script>
-    const form = document.querySelector('#form');
-    const input = document.querySelector('#prompt');
-    const chat = document.querySelector('#chat');
-    const send = document.querySelector('#send');
-    function add(text, cls) {
-      chat.querySelector('.empty')?.remove();
-      const el = document.createElement('div');
-      el.className = `bubble ${cls}`;
-      el.textContent = text;
-      chat.appendChild(el);
+    const $ = (s) => document.querySelector(s);
+    const chat = $('#chat'), welcome = $('#welcome'), messages = $('#messages'), history = $('#history'), prompt = $('#prompt'), send = $('#send');
+    const storeKey = 'toxico-conversations-v1';
+    let conversations = JSON.parse(localStorage.getItem(storeKey) || '[]');
+    let current = null;
+    const save = () => localStorage.setItem(storeKey, JSON.stringify(conversations));
+    const closeMenu = () => { $('#sidebar').classList.remove('open'); $('#backdrop').classList.remove('open'); };
+    function renderHistory() {
+      history.innerHTML = '';
+      conversations.slice().reverse().forEach(c => {
+        const b = document.createElement('button'); b.className = 'history-item' + (c.id === current?.id ? ' active' : ''); b.textContent = c.title || 'Nova conversa';
+        b.onclick = () => { current = c; renderMessages(); renderHistory(); closeMenu(); }; history.appendChild(b);
+      });
+    }
+    function renderMessages() {
+      messages.innerHTML = '';
+      const has = current?.messages?.length;
+      welcome.style.display = has ? 'none' : 'block';
+      (current?.messages || []).forEach(m => {
+        const row = document.createElement('article'); row.className = 'message ' + m.role;
+        const avatar = document.createElement('div'); avatar.className = 'avatar'; avatar.textContent = m.role === 'user' ? 'Tu' : 'T';
+        const body = document.createElement('div'); body.className = 'message-body'; body.textContent = m.content;
+        row.append(avatar, body); messages.appendChild(row);
+      });
       chat.scrollTop = chat.scrollHeight;
     }
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const prompt = input.value.trim();
-      if (!prompt || send.disabled) return;
-      add(prompt, 'user'); input.value = ''; send.disabled = true; send.textContent = '...';
+    function newConversation() { current = { id: Date.now(), title:'Nova conversa', messages:[] }; conversations.push(current); save(); renderHistory(); renderMessages(); closeMenu(); prompt.focus(); }
+    function ensureConversation(text) { if (!current) newConversation(); if (current.title === 'Nova conversa') { current.title = text.slice(0, 38); renderHistory(); } }
+    async function ask(text) {
+      ensureConversation(text); current.messages.push({ role:'user', content:text }); renderMessages(); save(); send.disabled = true; prompt.disabled = true;
       try {
-        const response = await fetch('/api/pergunta', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt}) });
-        const data = await response.json();
-        add(data.resposta || data.erro || 'Algo correu mal.', 'bot');
-      } catch { add('A ligação caiu. Até o servidor fugiu da conversa.', 'bot'); }
-      finally { send.disabled = false; send.textContent = 'Enviar'; input.focus(); }
-    });
+        const r = await fetch('/api/pergunta', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ prompt:text }) });
+        const data = await r.json(); current.messages.push({ role:'bot', content:data.resposta || data.erro || 'O servidor ficou sem palavras.' });
+      } catch { current.messages.push({ role:'bot', content:'Não consegui ligar ao servidor. Confere se a aplicação está online — até o sarcasmo precisa de internet.' }); }
+      finally { save(); renderMessages(); send.disabled = false; prompt.disabled = false; prompt.focus(); }
+    }
+    $('#form').onsubmit = e => { e.preventDefault(); const text = prompt.value.trim(); if (!text) return; prompt.value = ''; prompt.style.height='auto'; ask(text); };
+    prompt.oninput = () => { prompt.style.height='auto'; prompt.style.height=Math.min(prompt.scrollHeight,160)+'px'; };
+    prompt.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#form').requestSubmit(); } };
+    document.querySelectorAll('.prompt-card').forEach(b => b.onclick = () => { prompt.value=b.textContent; $('#form').requestSubmit(); });
+    $('#newChat').onclick = newConversation; $('#newTop').onclick = newConversation;
+    $('#menu').onclick = () => { $('#sidebar').classList.add('open'); $('#backdrop').classList.add('open'); }; $('#backdrop').onclick = closeMenu;
+    $('#theme').onclick = () => { document.documentElement.classList.toggle('light'); localStorage.setItem('toxico-theme', document.documentElement.classList.contains('light') ? 'light' : 'dark'); };
+    $('#clear').onclick = () => { if (confirm('Apagar todas as conversas deste dispositivo?')) { conversations=[]; current=null; save(); renderHistory(); renderMessages(); } };
+    if (localStorage.getItem('toxico-theme') === 'light') document.documentElement.classList.add('light');
+    renderHistory(); renderMessages();
   </script>
 </body>
 </html>
