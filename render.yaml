@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: toxico
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: PUBLICAI_API_KEY
+        sync: false
+      - key: PUBLICAI_MODEL
+        value: swiss-ai/apertus-8b-instruct
