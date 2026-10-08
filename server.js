@@ -58,6 +58,12 @@ app.post('/api/pergunta', async (req, res) => {
     const resposta = data?.choices?.[0]?.message?.content?.trim();
     if (!response.ok || !resposta) {
       console.error('OpenRouter error:', response.status, data?.error || data);
+      if (response.status === 401) {
+        return res.status(502).json({ erro: 'A OpenRouter rejeitou a chave (401). Gere uma chave válida na sua conta.' });
+      }
+      if (response.status === 429) {
+        return res.status(502).json({ erro: 'O limite da OpenRouter foi atingido. Tente novamente mais tarde.' });
+      }
       return res.status(502).json({ erro: 'O modelo não respondeu agora. Tente novamente.' });
     }
     res.json({ resposta });
